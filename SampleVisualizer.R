@@ -10,6 +10,16 @@
 # the distribution it came from with the relevant area shaded.
 #
 # Run with: shiny::runApp()
+#
+# ----------------------------------------------------------------------------
+# Credits
+#   Sample-size calculator concept: Dr. Diwakar Mohan, Johns Hopkins
+#     Bloomberg School of Public Health, who devised the original calculator
+#     templates. https://publichealth.jhu.edu/faculty/3214/diwakar-mohan
+#   Distribution explorer inspired by Matt Bognar's probability applets.
+#     https://mabognar.github.io/apps/
+#   This app fleshes those ideas out, adds the visualisations, the worked
+#   examples, and the distribution and inference tools.
 # =============================================================================
 
 library(shiny)
@@ -337,9 +347,11 @@ DISTS <- list(
   norm = list(label = "Normal", type = "continuous",
               about = "The bell curve. Describes measurements clustered symmetrically around a
              mean, and the sampling distribution of most estimators once n is large.",
-              pars = list(P("mu", "Mean (mu)", 0, "Centre of the distribution.", NA, NA, 0.5),
-                          P("sigma", "Standard deviation (sigma)", 1,
-                            "Spread. About 95% of values fall within two of these of the mean.",
+              pars = list(P("mu", "Mean (mu)", 70,
+                            "Centre of the distribution. Set to 0 for the standard normal.", NA, NA, 0.5),
+                          P("sigma", "Standard deviation (sigma)", 10,
+                            "Spread. About 95% of values fall within two of these of the mean.
+                            Set to 1 (with mean 0) for the standard normal.",
                             0.0001, NA, 0.1)),
               d = function(x, v) dnorm(x, v[1], v[2]),
               pf = function(q, v) pnorm(q, v[1], v[2]),
@@ -448,6 +460,166 @@ DISTS <- list(
                   if (v[1] > 2) v[1]*v[2]^2/((v[1]-1)^2*(v[1]-2)) else NA))
 )
 
+# A concrete toy example for every distribution. The scenario is a *template*:
+# it is a function of the live parameter values, so when a student changes a
+# control the sentence rewrites itself to match. The question is likewise built
+# from the current query, and the answer is computed from the same d/p/q
+# functions the app uses. Nothing here can drift out of step with the controls.
+#
+# Each entry provides:
+#   story(v)   -> a sentence describing the setup, using the current v
+#   noun       -> what one observation is ("tagged fish", "heads"), for questions
+#   unit_x(x)  -> render a cut-off in the story's own words (optional; default x)
+#   default    -> the query settings the example ships with (q, at, b)
+#   load       -> control values the "Load" button drops into the sidebar
+EX <- function(story, noun, default, load, unit_x = NULL)
+  list(story = story, noun = noun, default = default, load = load,
+       unit_x = if (is.null(unit_x)) function(x) as.character(x) else unit_x)
+
+DIST_EXAMPLES <- list(
+  binom = EX(
+    story = function(v) sprintf(
+      "You run %s independent trials, each a success with probability %s (think %s coin flips).",
+      v[1], v[2], v[1]),
+    noun = "the number of successes",
+    default = list(q = "ge", at = 7),
+    load = list(dp1 = 10, dp2 = 0.5, dist_q = "ge", dist_x = 7)),
+  geo1 = EX(
+    story = function(v) sprintf(
+      "You repeat an attempt that succeeds with probability %s each time, and wait for the first success.",
+      v[1]),
+    noun = "the trial of the first success",
+    default = list(q = "eq", at = 4),
+    load = list(dp1 = 0.3, dist_q = "eq", dist_x = 4)),
+  geo2 = EX(
+    story = function(v) sprintf(
+      "You repeat an attempt that succeeds with probability %s, counting the failures before the first success.",
+      v[1]),
+    noun = "the number of failures before the first success",
+    default = list(q = "eq", at = 3),
+    load = list(dp1 = 0.3, dist_q = "eq", dist_x = 3)),
+  hyper = EX(
+    story = function(v) sprintf(
+      "A pond holds %s fish, %s of them tagged. You net %s at once, without replacement.",
+      v[1], v[2], v[3]),
+    noun = "the number of tagged fish in your net",
+    default = list(q = "ge", at = 2),
+    load = list(dp1 = 50, dp2 = 10, dp3 = 5, dist_q = "ge", dist_x = 2)),
+  nb1 = EX(
+    story = function(v) sprintf(
+      "Each attempt succeeds with probability %s, and you keep going until the %s success.",
+      v[2], ordinal(v[1])),
+    noun = "the trial number of that final success",
+    default = list(q = "le", at = 8),
+    load = list(dp1 = 3, dp2 = 0.3, dist_q = "le", dist_x = 8)),
+  nb2 = EX(
+    story = function(v) sprintf(
+      "Each attempt succeeds with probability %s, and you want %s successes in all.",
+      v[2], v[1]),
+    noun = "the number of failures before the last success",
+    default = list(q = "ge", at = 5),
+    load = list(dp1 = 3, dp2 = 0.3, dist_q = "ge", dist_x = 5)),
+  pois = EX(
+    story = function(v) sprintf(
+      "Events arrive independently at an average of %s per window (say a clinic's walk-ins in an hour).",
+      v[1]),
+    noun = "the number of events in the window",
+    default = list(q = "ge", at = 6),
+    load = list(dp1 = 4, dist_q = "ge", dist_x = 6)),
+  norm = EX(
+    story = function(v) sprintf(
+      "A measurement is normal with mean %s and SD %s (say adult resting heart rate in bpm).",
+      v[1], v[2]),
+    noun = "the measurement",
+    default = list(q = "le", at = 85),
+    load = list(dp1 = 70, dp2 = 10, dist_q = "le", dist_x = 85)),
+  t = EX(
+    story = function(v) sprintf(
+      "A t statistic on %s degrees of freedom (a sample of %s in a one-sample test).",
+      v[1], v[1] + 1),
+    noun = "the t statistic",
+    default = list(q = "ge", at = 2.23),
+    load = list(dp1 = 10, dist_q = "ge", dist_x = 2.23)),
+  chisq = EX(
+    story = function(v) sprintf(
+      "A chi-square statistic on %s degrees of freedom (say a goodness-of-fit test).",
+      v[1]),
+    noun = "the chi-square statistic",
+    default = list(q = "ge", at = 11.07),
+    load = list(dp1 = 5, dist_q = "ge", dist_x = 11.07)),
+  f = EX(
+    story = function(v) sprintf(
+      "An F statistic with %s and %s degrees of freedom (an ANOVA comparing group means).",
+      v[1], v[2]),
+    noun = "the F statistic",
+    default = list(q = "ge", at = 2.71),
+    load = list(dp1 = 5, dp2 = 20, dist_q = "ge", dist_x = 2.71)),
+  exp = EX(
+    story = function(v) sprintf(
+      "Events arrive at rate %s per unit time, so the average wait is %s (say buses per hour).",
+      v[1], sig4(1/v[1])),
+    noun = "the waiting time",
+    default = list(q = "le", at = 0.5),
+    load = list(dp1 = 1, dist_q = "le", dist_x = 0.5)),
+  gamma = EX(
+    story = function(v) sprintf(
+      "You wait for %s events, each arriving at rate %s per unit time.",
+      v[1], v[2]),
+    noun = "the total wait",
+    default = list(q = "le", at = 3),
+    load = list(dp1 = 2, dp2 = 1, dist_q = "le", dist_x = 3)),
+  beta = EX(
+    story = function(v) sprintf(
+      "A proportion follows Beta(%s, %s), centred near %s (a belief about a success rate).",
+      v[1], v[2], sig4(v[1]/(v[1]+v[2]))),
+    noun = "the proportion",
+    default = list(q = "le", at = 0.5),
+    load = list(dp1 = 2, dp2 = 5, dist_q = "le", dist_x = 0.5)),
+  lnorm = EX(
+    story = function(v) sprintf(
+      "A positive quantity is log-normal with log-mean %s and log-SD %s (say length of hospital stay in days).",
+      v[1], v[2]),
+    noun = "the value",
+    default = list(q = "ge", at = 2),
+    load = list(dp1 = 0, dp2 = 0.5, dist_q = "ge", dist_x = 2)),
+  weibull = EX(
+    story = function(v) sprintf(
+      "Time to failure is Weibull with shape %s and scale %s (say a part's lifetime in years).",
+      v[1], v[2]),
+    noun = "the failure time",
+    default = list(q = "le", at = 1),
+    load = list(dp1 = 1.5, dp2 = 1, dist_q = "le", dist_x = 1)),
+  pareto = EX(
+    story = function(v) sprintf(
+      "A heavy-tailed quantity is Pareto with shape %s and minimum %s (say city sizes).",
+      v[1], v[2]),
+    noun = "the value",
+    default = list(q = "ge", at = 2),
+    load = list(dp1 = 3, dp2 = 1, dist_q = "ge", dist_x = 2))
+)
+
+# Small formatting helpers used by the example templates.
+sig4    <- function(x) trimws(formatC(x, digits = 4, format = "g"))
+ordinal <- function(n) {
+  n <- round(n)
+  if (n %% 100 %in% 11:13) return(paste0(n, "th"))
+  paste0(n, switch(as.character(n %% 10),
+                   "1" = "st", "2" = "nd", "3" = "rd", "th"))
+}
+
+# Solve for a probability against a distribution's own functions, from the
+# current query state (q, at, b) rather than anything stored on the example, so
+# the worked example always reports exactly what the controls describe.
+solve_example <- function(dist, v, q, at, b = NA) {
+  disc <- dist$type == "discrete"
+  if (q == "le")      dist$pf(at, v)
+  else if (q == "ge") { if (disc) 1 - dist$pf(at - 1, v) else 1 - dist$pf(at, v) }
+  else if (q == "eq") dist$d(at, v)
+  else if (q == "between") {
+    if (disc) dist$pf(b, v) - dist$pf(at - 1, v) else dist$pf(b, v) - dist$pf(at, v)
+  } else NA
+}
+
 # ============================================================== INFERENCE =====
 # Parse a free-text box of numbers. Anything non-numeric is an error the user
 # should see, not something to quietly drop.
@@ -463,12 +635,64 @@ parse_data <- function(txt) {
 }
 
 # Wilson score interval: behaves properly for small n and extreme p, unlike Wald.
-wilson_ci <- function(x, n, conf) {
-  z <- z_conf(conf); ph <- x/n
+# alt controls whether the interval is two-sided or one-sided, so it always
+# matches the test's alternative rather than silently staying two-sided.
+wilson_ci <- function(x, n, conf, alt = "two.sided") {
+  ph <- x/n
+  z  <- if (alt == "two.sided") z_conf(conf) else qnorm(conf)
   den <- 1 + z^2/n
   ctr <- (ph + z^2/(2*n)) / den
   hw  <- z * sqrt(ph*(1-ph)/n + z^2/(4*n^2)) / den
-  c(ctr - hw, ctr + hw)
+  switch(alt,
+         two.sided = c(ctr - hw, ctr + hw),
+         greater   = c(ctr - hw, 1),    # lower bound only
+         less      = c(0, ctr + hw))    # upper bound only
+}
+
+# The critical multiplier for an interval that matches the alternative. A
+# one-sided test at level alpha pairs with a one-sided interval, so a
+# significant one-sided p and an interval that excludes the null always agree.
+crit_mult <- function(conf, alt, dist = "z", df = NULL) {
+  q <- if (alt == "two.sided") 1 - (1 - conf) / 2 else conf
+  if (dist == "t") qt(q, df) else qnorm(q)
+}
+
+# Assemble interval bounds from a point estimate, its SE, and the alternative.
+# One-sided intervals run to the infinite side, which is exactly the region the
+# one-sided test is willing to rule out.
+ci_from_se <- function(est, se, conf, alt, dist = "z", df = NULL,
+                       lo_limit = -Inf, hi_limit = Inf) {
+  m <- crit_mult(conf, alt, dist, df)
+  switch(alt,
+         two.sided = c(est - m * se, est + m * se),
+         greater   = c(est - m * se, hi_limit),
+         less      = c(lo_limit, est + m * se))
+}
+
+# Does the interval exclude the null value, phrased for the alternative in play?
+# For a one-sided interval only the finite bound is a real constraint.
+excludes_null <- function(ci, null, alt) {
+  switch(alt,
+         two.sided = null < ci[1] || null > ci[2],
+         greater   = null < ci[1],
+         less      = null > ci[2])
+}
+
+# A plain-language name for the interval, so the reading matches what is shown.
+ci_kind_label <- function(conf, alt) {
+  pct <- sprintf("%.0f%%", conf * 100)
+  switch(alt,
+         two.sided = sprintf("%s confidence interval", pct),
+         greater   = sprintf("%s one-sided lower bound", pct),
+         less      = sprintf("%s one-sided upper bound", pct))
+}
+
+# Format an interval for display, showing the open side of a one-sided one.
+fmt_ci <- function(ci, alt, fmtfun) {
+  switch(alt,
+         two.sided = sprintf("%s to %s", fmtfun(ci[1]), fmtfun(ci[2])),
+         greater   = sprintf("%s and above", fmtfun(ci[1])),
+         less      = sprintf("%s and below", fmtfun(ci[2])))
 }
 
 # ==================================================================== UI ======
@@ -524,86 +748,108 @@ infer_body <- function(prefix) tagList(
        card_body(uiOutput(paste0(prefix, "_notes"))))
 )
 alt_picker <- function(prefix)
-  radioButtons(paste0(prefix, "_alt"), "Alternative hypothesis",
-               c("Two-sided (\u2260)" = "two.sided", "Greater (>)" = "greater",
-                 "Less (<)" = "less"), selected = "two.sided")
+  tagList(
+    radioButtons(paste0(prefix, "_alt"), "Alternative hypothesis",
+                 c("Two-sided (\u2260)" = "two.sided", "Greater (>)" = "greater",
+                   "Less (<)" = "less"), selected = "two.sided"),
+    div(class = "param-help",
+        "Two-sided asks whether the truth differs from the null in either direction, and
+         is the honest default. Pick a one-sided option only if a difference the other way
+         would be as good as no difference to you. The interval follows your choice: one-sided
+         here gives a one-sided bound."))
 
 ui <- page_navbar(
   title = "Sample Size Studio", theme = app_theme,
   header = tagList(withMathJax(), tags$style(HTML(app_css))),
   
-  nav_panel("Start here", layout_columns(col_widths = c(7, 5),
-                                         card(card_body(
-                                           h3("Three tools, one place"),
-                                           p(class = "lede",
-                                             "Sample size works out how big a study needs to be. Distributions shows any
+  nav_panel("Start here", tagList(layout_columns(col_widths = c(7, 5),
+                                                 card(card_body(
+                                                   h3("Three tools, one place"),
+                                                   p(class = "lede",
+                                                     "Sample size works out how big a study needs to be. Distributions shows any
          probability as a shaded area under a curve. Inference takes data you already
          have and returns an interval or a test. Nothing here needs an internet
          connection once the app is open."),
-                                           h5("Choosing a sample size calculator"),
-                                           p(class = "lede",
-                                             "Two questions decide it. What kind of number is your outcome, and are you
+                                                   h5("Choosing a sample size calculator"),
+                                                   p(class = "lede",
+                                                     "Two questions decide it. What kind of number is your outcome, and are you
          estimating it in one group, comparing two, or randomising clusters? Each
          sample size tab is one outcome type, with the three aims as a switch inside."),
-                                           tags$table(class = "matrix",
-                                                      tags$tr(tags$th(""), tags$th("Estimate in one group"),
-                                                              tags$th("Compare two groups"), tags$th("Cluster randomised")),
-                                                      tags$tr(tags$td("Rate"), tags$td("Person-time to pin down an incidence rate"),
-                                                              tags$td("Person-time per arm for a rate ratio"),
-                                                              tags$td("Clusters per arm")),
-                                                      tags$tr(tags$td("Proportion"), tags$td("Sample to estimate a prevalence"),
-                                                              tags$td("Sample per arm for a difference in percentages"),
-                                                              tags$td("Clusters per arm")),
-                                                      tags$tr(tags$td("Mean"), tags$td("Sample to estimate an average"),
-                                                              tags$td("Sample per arm for a difference in averages"),
-                                                              tags$td("Clusters per arm"))),
-                                           br(),
-                                           h5("Estimating is not testing"),
-                                           p(class = "lede",
-                                             "Want a number with an interval around it? You are estimating: supply a margin
+                                                   tags$table(class = "matrix",
+                                                              tags$tr(tags$th(""), tags$th("Estimate in one group"),
+                                                                      tags$th("Compare two groups"), tags$th("Cluster randomised")),
+                                                              tags$tr(tags$td("Rate"), tags$td("Person-time to pin down an incidence rate"),
+                                                                      tags$td("Person-time per arm for a rate ratio"),
+                                                                      tags$td("Clusters per arm")),
+                                                              tags$tr(tags$td("Proportion"), tags$td("Sample to estimate a prevalence"),
+                                                                      tags$td("Sample per arm for a difference in percentages"),
+                                                                      tags$td("Clusters per arm")),
+                                                              tags$tr(tags$td("Mean"), tags$td("Sample to estimate an average"),
+                                                                      tags$td("Sample per arm for a difference in averages"),
+                                                                      tags$td("Clusters per arm"))),
+                                                   br(),
+                                                   h5("Estimating is not testing"),
+                                                   p(class = "lede",
+                                                     "Want a number with an interval around it? You are estimating: supply a margin
          of error, and power never enters. Want to detect a difference? You are
          testing: supply the smallest difference worth finding, and power does.
          Choosing wrong is the most common error in a protocol."),
-                                           h5("Rates are not proportions"),
-                                           p(class = "lede",
-                                             "A proportion is a share of a fixed denominator of people. A rate is events
+                                                   h5("Rates are not proportions"),
+                                                   p(class = "lede",
+                                                     "A proportion is a share of a fixed denominator of people. A rate is events
          per unit of person-time, so people contribute different amounts of follow-up.
          If your denominator is person-years, you need the rate tab.")
-                                         )),
-                                         card(card_header("Every term used here", class = "note-head"), card_body(
-                                           div(class = "term", div(class = "term-name", "Confidence level ",
-                                                                   span(class = "term-sym", "(1 - alpha)")),
-                                               div(class = "term-def", "How often the interval would cover the truth on repeated
+                                                 )),
+                                                 card(card_header("Every term used here", class = "note-head"), card_body(
+                                                   div(class = "term", div(class = "term-name", "Confidence level ",
+                                                                           span(class = "term-sym", "(1 - alpha)")),
+                                                       div(class = "term-def", "How often the interval would cover the truth on repeated
             sampling. Use 0.95. One minus the significance level.")),
-                                           div(class = "term", div(class = "term-name", "Power ",
-                                                                   span(class = "term-sym", "(1 - beta)")),
-                                               div(class = "term-def", "Chance of detecting a real difference of the size you
+                                                   div(class = "term", div(class = "term-name", "Power ",
+                                                                           span(class = "term-sym", "(1 - beta)")),
+                                                       div(class = "term-def", "Chance of detecting a real difference of the size you
             specified. 0.80 by convention. Applies only when testing.")),
-                                           div(class = "term", div(class = "term-name", "Margin of error ",
-                                                                   span(class = "term-sym", "(d)")),
-                                               div(class = "term-def", "Half the width of your interval. The strongest lever on
+                                                   div(class = "term", div(class = "term-name", "Margin of error ",
+                                                                           span(class = "term-sym", "(d)")),
+                                                       div(class = "term-def", "Half the width of your interval. The strongest lever on
             sample size: halving it roughly quadruples n.")),
-                                           div(class = "term", div(class = "term-name", "p-value"),
-                                               div(class = "term-def", "Probability of data at least this extreme if the null were
+                                                   div(class = "term", div(class = "term-name", "p-value"),
+                                                       div(class = "term-def", "Probability of data at least this extreme if the null were
             true. It is not the probability the null is true, and not a measure of effect
             size.")),
-                                           div(class = "term", div(class = "term-name", "Population size ",
-                                                                   span(class = "term-sym", "(N)")),
-                                               div(class = "term-def", "Size of the list you sample from. Small N pulls the
+                                                   div(class = "term", div(class = "term-name", "Population size ",
+                                                                           span(class = "term-sym", "(N)")),
+                                                       div(class = "term-def", "Size of the list you sample from. Small N pulls the
             requirement down. Set 0 to ignore.")),
-                                           div(class = "term", div(class = "term-name", "Design effect ",
-                                                                   span(class = "term-sym", "(DEFF)")),
-                                               div(class = "term-def", "Penalty for cluster sampling, 1 + (m - 1)rho. DEFF of 1.5
+                                                   div(class = "term", div(class = "term-name", "Design effect ",
+                                                                           span(class = "term-sym", "(DEFF)")),
+                                                       div(class = "term-def", "Penalty for cluster sampling, 1 + (m - 1)rho. DEFF of 1.5
             means 50% more units for the same precision.")),
-                                           div(class = "term", div(class = "term-name", "Coefficient of variation ",
-                                                                   span(class = "term-sym", "(k)")),
-                                               div(class = "term-def", "Hayes & Bennett's between-cluster variation, typically
+                                                   div(class = "term", div(class = "term-name", "Coefficient of variation ",
+                                                                           span(class = "term-sym", "(k)")),
+                                                       div(class = "term-def", "Hayes & Bennett's between-cluster variation, typically
             0.15 to 0.30. Drives cluster count more than cluster size does.")),
-                                           div(class = "term", div(class = "term-name", "Effect size ",
-                                                                   span(class = "term-sym", "(h, d, RR)")),
-                                               div(class = "term-def", "The difference on a scale-free scale so studies compare.
+                                                   div(class = "term", div(class = "term-name", "Effect size ",
+                                                                           span(class = "term-sym", "(h, d, RR)")),
+                                                       div(class = "term-def", "The difference on a scale-free scale so studies compare.
             Cohen's h for proportions, d for means, rate ratio for rates."))
-                                         )))),
+                                                 ))),
+                                  card(card_header("Credits", class = "note-head"), card_body(
+                                    p(class = "lede",
+                                      "The sample-size calculators build on templates originally devised by ",
+                                      tags$a("Dr. Diwakar Mohan", href = "https://publichealth.jhu.edu/faculty/3214/diwakar-mohan",
+                                             target = "_blank"),
+                                      " of the Johns Hopkins Bloomberg School of Public Health. This app fleshes them out, ",
+                                      "adds the visualisations and worked examples, and integrates the distribution and ",
+                                      "inference tools."),
+                                    p(class = "lede",
+                                      "The distribution explorer is inspired by ",
+                                      tags$a("Matt Bognar's probability applets", href = "https://mabognar.github.io/apps/",
+                                             target = "_blank"),
+                                      ". The cluster-trial formulas follow ",
+                                      tags$a("Hayes & Bennett (1999)", href = "https://doi.org/10.1093/ije/28.2.319",
+                                             target = "_blank"), ".")
+                                  )))),
   
   # ------------------------------------------------------- sample size tabs
   nav_menu("Sample size",
@@ -733,8 +979,17 @@ ui <- page_navbar(
                                                               conditionalPanel("input.dist_q == 'quant'",
                                                                                param("dist_p", "Cumulative probability", 0.95,
                                                                                      "Returns the x with this much probability at or below it. 0.975 gives the
-             familiar 1.96 on a standard normal.", 0.0001, 0.9999, 0.005))),
+             familiar 1.96 on a standard normal.", 0.0001, 0.9999, 0.005)),
+                                                              hr(),
+                                                              actionButton("dist_load_ex", "Reset to the worked example",
+                                                                           class = "btn-primary btn-sm", width = "100%"),
+                                                              div(class = "param-help",
+                                                                  "The worked example on the right narrates whatever these controls say.
+             Change any parameter or the question and its scenario, symbol and
+             answer all update together. This button restores the starting numbers.")),
                                             tagList(
+                                              card(card_header("Worked example", class = "note-head"),
+                                                   card_body(uiOutput("dist_example"))),
                                               layout_columns(col_widths = c(5, 7),
                                                              card(card_body(uiOutput("dist_answer"))),
                                                              card(card_header("About this distribution", class = "note-head"),
@@ -833,6 +1088,22 @@ server <- function(input, output, session) {
   sig <- function(x, k = 4) formatC(x, digits = k, format = "g")
   unit_of <- function(t) if (is.null(t) || !nzchar(trimws(t))) "units" else trimws(t)
   pfmt <- function(p) if (p < 0.0001) "< 0.0001" else sig(p, 4)
+  
+  # A plain "roughly this often" reading of a probability. The denominator
+  # adapts so the count is a readable small number, and mid-range values are
+  # phrased as odds rather than a forced "in 1,000".
+  freq_gloss <- function(p) {
+    if (is.na(p)) return("")
+    if (p <= 0)   return("That outcome is essentially impossible here.")
+    if (p >= 1)   return("That outcome is essentially certain here.")
+    if (p >= 0.2 && p <= 0.8)
+      return(sprintf("That is roughly %s in every 10 times.", round(p * 10)))
+    tail <- if (p < 0.5) p else 1 - p
+    side <- if (p < 0.5) "happen" else "not happen"
+    denom <- if (tail >= 0.01) 100 else if (tail >= 0.001) 1000 else 10000
+    sprintf("That is about %s in %s: the outcome would %s that often over many repeats.",
+            fmt(round(tail * denom)), fmt(denom), side)
+  }
   
   # ============================================================= SAMPLE SIZE
   rate_res <- reactive({
@@ -1228,15 +1499,20 @@ server <- function(input, output, session) {
              subtitle = "Small effects are expensive: d of 0.2 costs about 25 times d of 1.0.") +
         theme_ss()
     } else {
+      # Sweep the intervention-arm k with the control-arm k held at its set
+      # value, so the highlighted point sits exactly on the curve even when the
+      # two k's differ.
       ks <- seq(0.02, 0.5, by = 0.01)
       cs <- vapply(ks, function(k) ceiling(clus_mean(input$mean_cmu1, input$mean_cmu0,
-                                                     input$mean_s1, input$mean_s0, k, k, input$mean_cm, input$mean_conf,
+                                                     input$mean_s1, input$mean_s0, k,
+                                                     input$mean_k0, input$mean_cm,
+                                                     input$mean_conf,
                                                      input$mean_powerc)), numeric(1))
       ggplot(data.frame(k = ks, c = cs), aes(k, c)) +
         geom_line(colour = teal, linewidth = 1) +
         geom_point(data = data.frame(k = input$mean_k1, c = r$clusters),
                    colour = rose, size = 3.5) +
-        labs(x = "Coefficient of variation (k)", y = "Clusters per arm",
+        labs(x = "Coefficient of variation, intervention arm (k1)", y = "Clusters per arm",
              subtitle = "k moves the answer more than anything else in this formula.") +
         theme_ss()
     }
@@ -1332,6 +1608,105 @@ server <- function(input, output, session) {
   
   output$dist_about <- renderText(gsub("\\s+", " ", cur_dist()$about))
   
+  cur_example <- reactive({ req(input$dist_which); DIST_EXAMPLES[[input$dist_which]] })
+  
+  # The worked example narrates the *live* controls. The scenario sentence is
+  # rebuilt from the current parameter values, the question mirrors the current
+  # query, and the answer is computed from the same functions the app uses. So a
+  # student can change any control and watch the words, the question and the
+  # number all move together, which is the whole point: it shows what each input
+  # means rather than freezing one lucky configuration.
+  output$dist_example <- renderUI({
+    d <- cur_dist(); ex <- cur_example()
+    if (is.null(ex)) return(NULL)
+    v <- dist_vals()                 # live parameter values
+    q <- input$dist_q %||% "le"
+    
+    # Build the question and the probability from whatever the controls say.
+    if (q == "quant") {
+      req(input$dist_p)
+      xq <- d$qf(input$dist_p, v)
+      question <- sprintf("Which value of %s has %s of the distribution at or below it?",
+                          ex$noun, sig4(input$dist_p))
+      ask_detail <- "find the cut-off"
+      qsym  <- "x"
+      ans_val <- sig(xq, 4)
+      ans_read <- sprintf("About %s of the distribution lies at or below %s.",
+                          sig4(input$dist_p), sig(xq, 4))
+    } else if (q == "between") {
+      req(input$dist_a, input$dist_b)
+      a <- input$dist_a; b <- input$dist_b
+      validate(need(b >= a, "For the worked example, set the upper edge at or above the lower edge."))
+      p_ans <- solve_example(d, v, "between", a, b)
+      question <- sprintf("What is the chance that %s lands between %s and %s?", ex$noun, a, b)
+      ask_detail <- "the area between"
+      qsym  <- sprintf("P(%s \u2264 X \u2264 %s)", a, b)
+      ans_val <- sig(p_ans, 4); ans_read <- freq_gloss(p_ans)
+    } else {
+      req(input$dist_x)
+      x <- input$dist_x
+      p_ans <- solve_example(d, v, q, x)
+      disc <- d$type == "discrete"
+      verb <- switch(q,
+                     le = sprintf("is %s or %s", x, if (disc) "fewer" else "less"),
+                     ge = sprintf("is %s or more", x),
+                     eq = sprintf("equals exactly %s", x))
+      question <- sprintf("What is the chance that %s %s?", ex$noun, verb)
+      ask_detail <- switch(q, le = "the lower tail", ge = "the upper tail",
+                           eq = "one exact value")
+      qsym <- switch(q,
+                     le = sprintf("P(X \u2264 %s)", x),
+                     ge = sprintf("P(X \u2265 %s)", x),
+                     eq = sprintf("P(X = %s)", x))
+      ans_val <- sig(p_ans, 4); ans_read <- freq_gloss(p_ans)
+    }
+    
+    parlist <- paste(mapply(function(pp, val) sprintf("%s = %s", pp$label, val),
+                            d$pars, v), collapse = ", ")
+    tagList(
+      p(style = "font-size:0.92rem;line-height:1.55;margin-bottom:0.5rem;",
+        tags$b("Scenario. "), gsub("\\s+", " ", ex$story(v)), " ",
+        tags$b("Question. "), question),
+      div(class = "rung",
+          div(class = "rung-step", "Parameters"),
+          div(class = "rung-detail", parlist),
+          div(class = "rung-value", "")),
+      div(class = "rung",
+          div(class = "rung-step", "Ask for"),
+          div(class = "rung-detail", ask_detail),
+          div(class = "rung-value", qsym)),
+      div(class = "rung rung-final",
+          div(class = "rung-step", "Answer"),
+          div(class = "rung-detail", ans_read),
+          div(class = "rung-value", ans_val)),
+      div(style = "margin-top:0.6rem;font-size:0.82rem;color:#5B7186;",
+          "Every word above tracks the controls. Change a parameter or the
+           question and the scenario, the symbol and the answer all update. Use
+           \u201cReset to the worked example\u201d to return to the starting numbers."))
+  })
+  
+  # Reset every control to the example's starting configuration.
+  observeEvent(input$dist_load_ex, {
+    ex <- cur_example(); req(ex)
+    for (nm in names(ex$load)) {
+      val <- ex$load[[nm]]
+      if (grepl("^dp", nm)) updateNumericInput(session, nm, value = val)
+      else if (nm == "dist_q") updateRadioButtons(session, nm, selected = val)
+      else updateNumericInput(session, nm, value = val)
+    }
+  })
+  
+  # When the distribution changes, start it in its own worked-example state
+  # (parameters and question together) so the scenario, the symbol and the
+  # answer are coherent from the first moment. The parameter controls are
+  # rebuilt by renderUI, so we defer the parameter updates briefly to let those
+  # inputs exist before we set them.
+  observeEvent(input$dist_which, {
+    ex <- DIST_EXAMPLES[[input$dist_which]]; req(ex)
+    if (!is.null(ex$load$dist_q)) updateRadioButtons(session, "dist_q", selected = ex$load$dist_q)
+    if (!is.null(ex$load$dist_x)) updateNumericInput(session, "dist_x", value = ex$load$dist_x)
+  }, ignoreInit = TRUE)
+  
   # Parameter controls are rebuilt whenever the distribution changes. Fixed slot
   # ids (dp1..dp3) keep the server side simple: no dynamic observers needed.
   output$dist_params <- renderUI({
@@ -1392,8 +1767,7 @@ server <- function(input, output, session) {
     if (r$kind == "quant")
       answer_block(sig(r$x), "the value of x", r$text)
     else
-      answer_block(sig(r$p, 5), r$label,
-                   sprintf("That is about %s in %s.", round(r$p * 1000), "1,000"))
+      answer_block(sig(r$p, 5), r$label, freq_gloss(r$p))
   })
   
   output$dist_notes <- renderUI({
@@ -1465,17 +1839,17 @@ server <- function(input, output, session) {
     p <- switch(input$im_alt,
                 two.sided = 2 * pt(-abs(tstat), df), greater = pt(tstat, df, lower.tail = FALSE),
                 less = pt(tstat, df))
-    tc <- qt(1 - (1 - input$im_conf)/2, df)
-    list(n = n, xbar = xbar, s = s, se = se, df = df, t = tstat, p = p,
-         ci = c(xbar - tc*se, xbar + tc*se))
+    ci <- ci_from_se(xbar, se, input$im_conf, input$im_alt, dist = "t", df = df)
+    list(n = n, xbar = xbar, s = s, se = se, df = df, t = tstat, p = p, ci = ci)
   })
   output$im_answer <- renderUI({
     r <- im_calc()
-    answer_block(sprintf("%s to %s", sig(r$ci[1]), sig(r$ci[2])),
-                 sprintf("%.0f%% confidence interval for the mean", input$im_conf*100),
+    sig_at <- r$p < 1 - input$im_conf
+    answer_block(fmt_ci(r$ci, input$im_alt, sig),
+                 sprintf("%s for the mean", ci_kind_label(input$im_conf, input$im_alt)),
                  sprintf("Best estimate %s. Testing against %s gives p = %s, so the data are %s
                with the null value.", sig(r$xbar), input$im_mu0, pfmt(r$p),
-                         if (r$p < 1 - input$im_conf) "not consistent" else "consistent"))
+                         if (sig_at) "not consistent" else "consistent"))
   })
   output$im_stats <- renderUI(tagList(
     stat_row("Sample size (n)", im_calc()$n),
@@ -1524,13 +1898,14 @@ server <- function(input, output, session) {
   })
   output$id_answer <- renderUI({
     r <- id_calc()
-    answer_block(sprintf("%s to %s", sig(r$ci[1]), sig(r$ci[2])),
-                 sprintf("%.0f%% interval for group 1 minus group 2", input$id_conf*100),
+    exc <- excludes_null(r$ci, 0, input$id_alt)
+    answer_block(fmt_ci(r$ci, input$id_alt, sig),
+                 sprintf("%s for group 1 minus group 2", ci_kind_label(input$id_conf, input$id_alt)),
                  sprintf("Observed difference %s, p = %s. The interval %s zero, so the difference
                %s statistically significant at this level.",
                          sig(r$diff), pfmt(r$p),
-                         if (r$ci[1] <= 0 && r$ci[2] >= 0) "includes" else "excludes",
-                         if (r$ci[1] <= 0 && r$ci[2] >= 0) "is not" else "is"))
+                         if (exc) "excludes" else "includes",
+                         if (exc) "is" else "is not"))
   })
   output$id_stats <- renderUI({ r <- id_calc(); tagList(
     stat_row("Group 1: n, mean, SD", sprintf("%s, %s, %s", r$n1, sig(r$m1), sig(r$s1))),
@@ -1573,13 +1948,14 @@ server <- function(input, output, session) {
     p <- switch(input$ip_alt, two.sided = 2*pnorm(-abs(z)),
                 greater = pnorm(z, lower.tail = FALSE), less = pnorm(z))
     ex <- binom.test(x, n, p0, alternative = input$ip_alt, conf.level = input$ip_conf)
-    list(x = x, n = n, ph = ph, z = z, p = p, ci = wilson_ci(x, n, input$ip_conf),
+    list(x = x, n = n, ph = ph, z = z, p = p,
+         ci = wilson_ci(x, n, input$ip_conf, input$ip_alt),
          exact = ex$p.value, small = min(n*p0, n*(1-p0)) < 10)
   })
   output$ip_answer <- renderUI({
     r <- ip_calc()
-    answer_block(sprintf("%s to %s", sig(r$ci[1]), sig(r$ci[2])),
-                 sprintf("%.0f%% Wilson interval for p", input$ip_conf*100),
+    answer_block(fmt_ci(r$ci, input$ip_alt, sig),
+                 sprintf("%s for p (Wilson)", ci_kind_label(input$ip_conf, input$ip_alt)),
                  sprintf("Observed %s of %s, which is %.1f%%. Testing against %s gives p = %s
                (exact binomial %s).", r$x, r$n, r$ph*100, input$ip_p0,
                          pfmt(r$p), pfmt(r$exact)))
@@ -1590,7 +1966,7 @@ server <- function(input, output, session) {
     stat_row("z statistic", sig(r$z)),
     stat_row("p-value (normal approx)", pfmt(r$p)),
     stat_row("p-value (exact binomial)", pfmt(r$exact)),
-    stat_row("Wilson interval", sprintf("%s to %s", sig(r$ci[1]), sig(r$ci[2])))) })
+    stat_row("Wilson interval", fmt_ci(r$ci, input$ip_alt, sig))) })
   output$ip_plot <- renderPlot({
     r <- ip_calc(); lim <- max(4, abs(r$z)*1.3)
     reg <- switch(input$ip_alt,
@@ -1627,17 +2003,17 @@ server <- function(input, output, session) {
     p <- switch(input$iq_alt, two.sided = 2*pnorm(-abs(z)),
                 greater = pnorm(z, lower.tail = FALSE), less = pnorm(z))
     seu <- sqrt(p1*(1-p1)/input$iq_n1 + p2*(1-p2)/input$iq_n2)
-    zc <- z_conf(input$iq_conf)
-    list(p1 = p1, p2 = p2, diff = p1 - p2, z = z, p = p,
-         ci = c(p1-p2 - zc*seu, p1-p2 + zc*seu))
+    ci <- ci_from_se(p1 - p2, seu, input$iq_conf, input$iq_alt,
+                     lo_limit = -1, hi_limit = 1)
+    list(p1 = p1, p2 = p2, diff = p1 - p2, z = z, p = p, ci = ci)
   })
   output$iq_answer <- renderUI({
     r <- iq_calc()
-    answer_block(sprintf("%s to %s", sig(r$ci[1]), sig(r$ci[2])),
-                 sprintf("%.0f%% interval for p1 minus p2", input$iq_conf*100),
+    answer_block(fmt_ci(r$ci, input$iq_alt, sig),
+                 sprintf("%s for p1 minus p2", ci_kind_label(input$iq_conf, input$iq_alt)),
                  sprintf("%.1f%% versus %.1f%%, a difference of %.1f percentage points, p = %s.
                The interval %s zero.", r$p1*100, r$p2*100, r$diff*100, pfmt(r$p),
-                         if (r$ci[1] <= 0 && r$ci[2] >= 0) "includes" else "excludes"))
+                         if (excludes_null(r$ci, 0, input$iq_alt)) "excludes" else "includes"))
   })
   output$iq_stats <- renderUI({ r <- iq_calc(); tagList(
     stat_row("Proportion, group 1", sig(r$p1)),
@@ -1676,17 +2052,23 @@ server <- function(input, output, session) {
                 greater   = pchisq(chi, df, lower.tail = FALSE),
                 less      = pchisq(chi, df))
     a <- 1 - input$iv_conf
-    ci_var <- c(df*s^2/qchisq(1-a/2, df), df*s^2/qchisq(a/2, df))
+    # The interval matches the alternative: a one-sided test pairs with a
+    # one-sided interval. Chi-square is asymmetric, so the two bounds use
+    # different quantiles.
+    ci_var <- switch(input$iv_alt,
+                     two.sided = c(df*s^2/qchisq(1-a/2, df), df*s^2/qchisq(a/2, df)),
+                     greater   = c(df*s^2/qchisq(1-a,   df), Inf),
+                     less      = c(0, df*s^2/qchisq(a,   df)))
     list(n = n, s = s, df = df, chi = chi, p = p,
-         ci_var = ci_var, ci_sd = sqrt(ci_var))
+         ci_var = ci_var, ci_sd = c(sqrt(ci_var[1]), sqrt(ci_var[2])))
   })
   output$iv_answer <- renderUI({
     r <- iv_calc()
-    answer_block(sprintf("%s to %s", sig(r$ci_sd[1]), sig(r$ci_sd[2])),
-                 sprintf("%.0f%% interval for the standard deviation", input$iv_conf*100),
+    answer_block(fmt_ci(r$ci_sd, input$iv_alt, sig),
+                 sprintf("%s for the standard deviation", ci_kind_label(input$iv_conf, input$iv_alt)),
                  sprintf("Sample SD %s on %s df. Testing against %s gives p = %s. The variance
-               interval is %s to %s.", sig(r$s), r$df, input$iv_s0, pfmt(r$p),
-                         sig(r$ci_var[1]), sig(r$ci_var[2])))
+               interval is %s.", sig(r$s), r$df, input$iv_s0, pfmt(r$p),
+                         fmt_ci(r$ci_var, input$iv_alt, sig)))
   })
   output$iv_stats <- renderUI({ r <- iv_calc(); tagList(
     stat_row("Sample size (n)", r$n),
