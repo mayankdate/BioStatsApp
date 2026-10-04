@@ -6,8 +6,8 @@
 #   Distributions 17 probability distributions with shaded-tail probabilities
 #   Inference     confidence intervals and tests for mu, mu1-mu2, p, p1-p2, sigma^2
 #
-# Everything runs offline. Every control explains itself, and every answer shows
-# the distribution it came from with the relevant area shaded.
+# Calculations run locally in RStudio or in the browser through Shinylive.
+# Every control explains itself; answers show the relevant shaded distribution.
 #
 # Run with: shiny::runApp()
 #
@@ -37,9 +37,11 @@ muted <- "#5B7186"
 
 app_theme <- bs_theme(
   version = 5, bg = paper, fg = ink, primary = teal, secondary = muted,
-  base_font    = font_google("Source Sans 3"),
-  heading_font = font_google("Archivo"),
-  code_font    = font_google("IBM Plex Mono")
+  # Explicit collections use installed fonts without downloading Google Fonts.
+  # System fallbacks work in both native R and the browser's WebAssembly runtime.
+  base_font    = font_collection("Source Sans 3", "Segoe UI", "Arial", "sans-serif"),
+  heading_font = font_collection("Archivo", "Segoe UI", "Arial", "sans-serif"),
+  code_font    = font_collection("IBM Plex Mono", "Consolas", "monospace")
 )
 
 app_css <- sprintf("
@@ -768,8 +770,8 @@ ui <- page_navbar(
                                                    p(class = "lede",
                                                      "Sample size works out how big a study needs to be. Distributions shows any
          probability as a shaded area under a curve. Inference takes data you already
-         have and returns an interval or a test. Nothing here needs an internet
-         connection once the app is open."),
+         have and returns an interval or a test. Calculations run in your R session
+         locally, or in your browser on the published site."),
                                                    h5("Choosing a sample size calculator"),
                                                    p(class = "lede",
                                                      "Two questions decide it. What kind of number is your outcome, and are you

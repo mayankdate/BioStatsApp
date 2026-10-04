@@ -36,3 +36,12 @@ renv/staging/
 # VS Code
 # --------------------------------------------------
 .vscode/
+
+# Generated Shinylive website (GitHub Actions builds and uploads this)
+/site/
+
+# Local secrets and machine-specific configuration
+.Renviron
+.env
+.env.*
+!.env.example
