@@ -710,7 +710,7 @@ outcome_body <- function(prefix) {
                    card(card_header("Formula and assumptions", class = "note-head"),
                         card_body(uiOutput(paste0(prefix, "_notes"))))),
     card(card_header(uiOutput(paste0(prefix, "_pichead")), class = "note-head"),
-         card_body(plotOutput(paste0(prefix, "_power"), height = "300px")))
+         card_body(plotOutput(paste0(prefix, "_power_plot"), height = "300px")))
   )
 }
 mode_picker <- function(prefix)
@@ -1085,6 +1085,10 @@ ui <- page_navbar(
 
 # ================================================================ SERVER ======
 server <- function(input, output, session) {
+  # Plots cache prior input combinations within this session. Numeric results
+  # remain ordinary reactives; plot keys include their computed summaries and
+  # all additional inputs used by the plot. Hidden outputs stay suspended.
+
   
   fmt <- function(x) format(x, big.mark = ",")
   sig <- function(x, k = 4) formatC(x, digits = k, format = "g")
@@ -1232,7 +1236,7 @@ server <- function(input, output, session) {
                    r$clusters, emphasis = TRUE))
     }
   })
-  output$rate_plot <- renderPlot({
+  output$rate_plot <- bindCache(renderPlot({
     r <- rate_res()
     if (input$rate_mode == "estimate") {
       eps <- seq(0.05, 0.5, by = 0.01)
@@ -1273,7 +1277,9 @@ server <- function(input, output, session) {
              subtitle = "The curve flattens: past a point only more clusters help.") +
         theme_ss()
     }
-  })
+  }),
+    rate_res(), input$rate_cl0, input$rate_cl1, input$rate_conf, input$rate_d, input$rate_eps, input$rate_k0, input$rate_k1, input$rate_l1, input$rate_l2, input$rate_lam, input$rate_mode, input$rate_nr2, input$rate_power, input$rate_powerc, input$rate_prec, input$rate_r, input$rate_y,
+    cache = "session")
   output$rate_notes <- renderUI({
     if (input$rate_mode == "estimate") tagList(
       withMathJax(helpText("$$T=\\frac{z^2\\lambda}{d^2}\\times\\text{DEFF}\\div(1-\\text{loss})$$")),
@@ -1354,7 +1360,7 @@ server <- function(input, output, session) {
       ladder_row("Cluster size", sprintf("%s %s each", input$prop_cm, u), ""),
       ladder_row("Clusters per arm", "rounded up from the formula", r$clusters, emphasis = TRUE))
   })
-  output$prop_plot <- renderPlot({
+  output$prop_plot <- bindCache(renderPlot({
     r <- prop_res(); u <- unit_of(input$prop_unit)
     if (input$prop_mode == "estimate") {
       ds <- seq(0.02, 0.15, by = 0.002)
@@ -1398,7 +1404,9 @@ server <- function(input, output, session) {
              subtitle = "Between-cluster variation sets a floor cluster size cannot break.") +
         theme_ss()
     }
-  })
+  }),
+    prop_res(), input$prop_N, input$prop_cm, input$prop_conf, input$prop_cp0, input$prop_cp1, input$prop_d, input$prop_k0, input$prop_k1, input$prop_m, input$prop_mode, input$prop_nr, input$prop_nr2, input$prop_p, input$prop_p1, input$prop_p2, input$prop_power, input$prop_powerc, input$prop_r, input$prop_rho, input$prop_unit,
+    cache = "session")
   output$prop_notes <- renderUI({
     if (input$prop_mode == "estimate") tagList(
       withMathJax(helpText("$$n_0=\\frac{z^2p(1-p)}{d^2}\\qquad n=\\frac{n_0}{1+\\frac{n_0-1}{N}}\\times\\text{DEFF}\\div(1-\\text{NR})$$")),
@@ -1476,7 +1484,7 @@ server <- function(input, output, session) {
       ladder_row("Cluster size", sprintf("%s %s each", input$mean_cm, u), ""),
       ladder_row("Clusters per arm", "rounded up from the formula", r$clusters, emphasis = TRUE))
   })
-  output$mean_plot <- renderPlot({
+  output$mean_plot <- bindCache(renderPlot({
     r <- mean_res(); u <- unit_of(input$mean_unit)
     if (input$mean_mode == "estimate") {
       ds <- seq(input$mean_d/4, input$mean_d*3, length.out = 60)
@@ -1518,7 +1526,9 @@ server <- function(input, output, session) {
              subtitle = "k moves the answer more than anything else in this formula.") +
         theme_ss()
     }
-  })
+  }),
+    mean_res(), input$mean_N, input$mean_cm, input$mean_cmu0, input$mean_cmu1, input$mean_conf, input$mean_csd, input$mean_d, input$mean_k0, input$mean_k1, input$mean_m, input$mean_mode, input$mean_nr, input$mean_nr2, input$mean_power, input$mean_powerc, input$mean_r, input$mean_rho, input$mean_s0, input$mean_s1, input$mean_sd, input$mean_unit,
+    cache = "session")
   output$mean_notes <- renderUI({
     if (input$mean_mode == "estimate") tagList(
       withMathJax(helpText("$$n_0=\\frac{z^2\\sigma^2}{d^2}$$")),
@@ -1564,7 +1574,7 @@ server <- function(input, output, session) {
     if (input$mean_mode == "estimate") "What the confidence level means"
     else "What power looks like")
   
-  output$rate_power <- renderPlot({
+  output$rate_power_plot <- bindCache(renderPlot({
     r <- rate_res()
     if (input$rate_mode == "estimate")
       make_picture("estimate", input$rate_conf, NULL, NULL, NULL, NULL)
@@ -1577,8 +1587,10 @@ server <- function(input, output, session) {
       se <- d / (z_conf(input$rate_conf) + z_power(input$rate_powerc))
       power_picture(se, d, input$rate_conf, input$rate_powerc)
     }
-  })
-  output$prop_power <- renderPlot({
+  }),
+    rate_res(), input$rate_cl0, input$rate_cl1, input$rate_conf, input$rate_l1, input$rate_l2, input$rate_mode, input$rate_power, input$rate_powerc,
+    cache = "session")
+  output$prop_power_plot <- bindCache(renderPlot({
     if (input$prop_mode == "estimate")
       make_picture("estimate", input$prop_conf, NULL, NULL, NULL, NULL)
     else if (input$prop_mode == "compare") {
@@ -1590,8 +1602,10 @@ server <- function(input, output, session) {
       se <- d / (z_conf(input$prop_conf) + z_power(input$prop_powerc))
       power_picture(se, d, input$prop_conf, input$prop_powerc)
     }
-  })
-  output$mean_power <- renderPlot({
+  }),
+    input$prop_conf, input$prop_cp0, input$prop_cp1, input$prop_mode, input$prop_p1, input$prop_p2, input$prop_power, input$prop_powerc,
+    cache = "session")
+  output$mean_power_plot <- bindCache(renderPlot({
     if (input$mean_mode == "estimate")
       make_picture("estimate", input$mean_conf, NULL, NULL, NULL, NULL)
     else if (input$mean_mode == "compare") {
@@ -1603,7 +1617,9 @@ server <- function(input, output, session) {
       se <- d / (z_conf(input$mean_conf) + z_power(input$mean_powerc))
       power_picture(se, d, input$mean_conf, input$mean_powerc)
     }
-  })
+  }),
+    input$mean_cmu0, input$mean_cmu1, input$mean_conf, input$mean_mode, input$mean_mu1, input$mean_mu2, input$mean_power, input$mean_powerc,
+    cache = "session")
   
   # ============================================================ DISTRIBUTIONS
   cur_dist <- reactive({ req(input$dist_which); DISTS[[input$dist_which]] })
@@ -1790,7 +1806,7 @@ server <- function(input, output, session) {
     )
   })
   
-  output$dist_plot <- renderPlot({
+  output$dist_plot <- bindCache(renderPlot({
     d <- cur_dist(); v <- dist_vals(); r <- dist_calc(); disc <- d$type == "discrete"
     if (disc) {
       sup <- d$sup(v)
@@ -1821,7 +1837,9 @@ server <- function(input, output, session) {
                          sprintf("The shaded area is %.4g, and it ends at x = %s.", input$dist_p, sig(r$x))
                        else sprintf("The shaded area is %s = %s.", r$label, sig(r$p, 5)))
     }
-  })
+  }),
+    dist_calc(), dist_vals(), input$dist_p, input$dist_which,
+    cache = "session")
   
   # ================================================================ INFERENCE
   # --- Mean ---
@@ -1861,7 +1879,7 @@ server <- function(input, output, session) {
     stat_row("Degrees of freedom", im_calc()$df),
     stat_row("t statistic", sig(im_calc()$t)),
     stat_row("p-value", pfmt(im_calc()$p))))
-  output$im_plot <- renderPlot({
+  output$im_plot <- bindCache(renderPlot({
     r <- im_calc(); dfun <- function(x) dt(x, r$df)
     lim <- max(4, abs(r$t) * 1.3)
     reg <- switch(input$im_alt,
@@ -1874,7 +1892,9 @@ server <- function(input, output, session) {
                      subtitle = sprintf("t distribution on %s df. Shaded area is the p-value, %s: the
                           chance of a t this extreme if the true mean were %s.",
                                         r$df, pfmt(r$p), input$im_mu0))
-  })
+  }),
+    im_calc(), input$im_alt, input$im_mu0,
+    cache = "session")
   output$im_notes <- renderUI(tagList(
     div(class = "verdict",
         "The interval is the range of population means your data would not reject. The
@@ -1916,7 +1936,7 @@ server <- function(input, output, session) {
     stat_row("t statistic", sig(r$t)),
     stat_row("Degrees of freedom", sig(r$df)),
     stat_row("p-value", pfmt(r$p))) })
-  output$id_plot <- renderPlot({
+  output$id_plot <- bindCache(renderPlot({
     r <- id_calc(); dfun <- function(x) dt(x, r$df)
     lim <- max(4, abs(r$t)*1.3)
     reg <- switch(input$id_alt,
@@ -1927,7 +1947,9 @@ server <- function(input, output, session) {
     shade_continuous(dfun, c(-lim, lim), reg, list(list(at = r$t, colour = ink)),
                      xlab = "t", subtitle = sprintf("t on %.1f df. Shaded area is p = %s.",
                                                     r$df, pfmt(r$p)))
-  })
+  }),
+    id_calc(), input$id_alt,
+    cache = "session")
   output$id_notes <- renderUI(tagList(
     div(class = "verdict",
         "If the interval for the difference contains zero, the data are consistent with
@@ -1969,7 +1991,7 @@ server <- function(input, output, session) {
     stat_row("p-value (normal approx)", pfmt(r$p)),
     stat_row("p-value (exact binomial)", pfmt(r$exact)),
     stat_row("Wilson interval", fmt_ci(r$ci, input$ip_alt, sig))) })
-  output$ip_plot <- renderPlot({
+  output$ip_plot <- bindCache(renderPlot({
     r <- ip_calc(); lim <- max(4, abs(r$z)*1.3)
     reg <- switch(input$ip_alt,
                   two.sided = list(list(from = -lim, to = -abs(r$z), fill = rose),
@@ -1980,7 +2002,9 @@ server <- function(input, output, session) {
                      list(list(at = r$z, colour = ink)), xlab = "z",
                      subtitle = sprintf("Standard normal. Shaded area is p = %s, the chance of a z
                           this extreme if p really were %s.", pfmt(r$p), input$ip_p0))
-  })
+  }),
+    ip_calc(), input$ip_alt, input$ip_p0,
+    cache = "session")
   output$ip_notes <- renderUI({ r <- ip_calc(); tagList(
     div(class = "verdict",
         "The Wilson interval is shown rather than the textbook Wald interval because Wald
@@ -2023,7 +2047,7 @@ server <- function(input, output, session) {
     stat_row("Difference", sig(r$diff)),
     stat_row("z statistic", sig(r$z)),
     stat_row("p-value", pfmt(r$p))) })
-  output$iq_plot <- renderPlot({
+  output$iq_plot <- bindCache(renderPlot({
     r <- iq_calc(); lim <- max(4, abs(r$z)*1.3)
     reg <- switch(input$iq_alt,
                   two.sided = list(list(from = -lim, to = -abs(r$z), fill = rose),
@@ -2033,7 +2057,9 @@ server <- function(input, output, session) {
     shade_continuous(function(x) dnorm(x), c(-lim, lim), reg,
                      list(list(at = r$z, colour = ink)), xlab = "z",
                      subtitle = sprintf("Standard normal. Shaded area is p = %s.", pfmt(r$p)))
-  })
+  }),
+    iq_calc(), input$iq_alt,
+    cache = "session")
   output$iq_notes <- renderUI(tagList(
     div(class = "verdict",
         "The test uses a pooled standard error, because under the null the two groups
@@ -2079,7 +2105,7 @@ server <- function(input, output, session) {
     stat_row("Degrees of freedom", r$df),
     stat_row("Chi-square statistic", sig(r$chi)),
     stat_row("p-value", pfmt(r$p))) })
-  output$iv_plot <- renderPlot({
+  output$iv_plot <- bindCache(renderPlot({
     r <- iv_calc(); hi <- max(qchisq(0.999, r$df), r$chi*1.2)
     reg <- switch(input$iv_alt,
                   greater   = list(list(from = r$chi, to = hi, fill = rose)),
@@ -2092,7 +2118,9 @@ server <- function(input, output, session) {
                      subtitle = sprintf("Chi-square on %s df. Shaded is the one-tailed area; the
                           two-sided p doubles the smaller tail. p = %s.",
                                         r$df, pfmt(r$p)))
-  })
+  }),
+    iv_calc(), input$iv_alt,
+    cache = "session")
   output$iv_notes <- renderUI(tagList(
     div(class = "verdict",
         "Notice the interval is not symmetric around the sample SD: the chi-square
